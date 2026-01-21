@@ -1,0 +1,74 @@
+# .htaccess
+RewriteEngine On
+
+# Block suspicious requests
+RewriteCond %{QUERY_STRING} (;|<|>|'|"|\)|%0A|%0D|%22|%27|%3C|%3E|%00) [NC,OR]
+RewriteCond %{QUERY_STRING} (cmd|command|shell|exec|eval|phpinfo) [NC,OR]
+RewriteCond %{QUERY_STRING} (base64_encode|localhost|mosconfig) [NC,OR]
+RewriteCond %{QUERY_STRING} (boot\.ini|echo.*kae|etc/passwd) [NC,OR]
+RewriteCond %{QUERY_STRING} (GLOBALS|REQUEST)(=|\[|%) [NC]
+RewriteRule .* - [F]
+
+# Protect sensitive files
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<FilesMatch "\.(sql|log|env)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# API rate limiting
+<IfModule mod_ratelimit.c>
+    <Location /api/>
+        SetOutputFilter RATE_LIMIT
+        SetEnv rate-limit 10
+        SetEnv rate-initial-burst 5
+    </Location>
+</IfModule>
+
+# CORS headers for API
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://maps.googleapis.com; style-src 'self' 'unsafe-inline';"
+</IfModule>
+
+# Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# Cache control
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType image/svg+xml "access plus 1 month"
+</IfModule>
+
+# Rewrite API requests
+RewriteRule ^api/track$ api.php [QSA,L]
+RewriteRule ^api/batch-track$ api.php [QSA,L]
+RewriteRule ^api/verify$ api.php [QSA,L]
+RewriteRule ^api/stats$ api.php [QSA,L]
+
+# Redirect to HTTPS (uncomment for production)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# Custom error pages
+ErrorDocument 404 /404.html
+ErrorDocument 403 /403.html
+ErrorDocument 500 /500.html
